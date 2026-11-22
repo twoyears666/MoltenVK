@@ -47,9 +47,10 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build \
-            -project MoltenVKPackaging.xcodeproj \
-            -scheme "MoltenVK Package (iOS only)" \
-            -destination "generic/platform=iOS" \
+            -project MoltenVK/MoltenVK.xcodeproj \
+            -target MoltenVK-iOS-dynamic \
+            -configuration Release \
+            -sdk iphoneos \
             -derivedDataPath build_dd \
             -quiet \
             IPHONEOS_DEPLOYMENT_TARGET=14.0 \
@@ -59,10 +60,12 @@ jobs:
       - name: 收集并校验 dylib 产物
         run: |
           set -euo pipefail
-          DYLIB="build_dd/Build/Products/Release-iphoneos/libMoltenVK.dylib"
-          test -f "$DYLIB"
+          ls -l build_dd/Build/Products/Release-iphoneos/
+          DYLIB=$(find build_dd/Build/Products/Release-iphoneos -maxdepth 1 -name "*.dylib" | head -1)
+          test -n "$DYLIB"
           mkdir -p out
           cp "$DYLIB" out/libMoltenVK.dylib
+          install_name_tool -id "@rpath/libMoltenVK.dylib" out/libMoltenVK.dylib
           lipo -info out/libMoltenVK.dylib
           otool -l out/libMoltenVK.dylib | grep -A4 LC_BUILD_VERSION | head -20 || true
           nm -gU out/libMoltenVK.dylib | grep -c "vkCreateMetalSurfaceEXT" || true
