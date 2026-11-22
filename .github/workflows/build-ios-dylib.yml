@@ -55,19 +55,23 @@ jobs:
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO 2>&1 | tee xcodebuild.log
 
-      - name: 校验产物架构与最低系统版本
+      - name: 收集并校验 dylib 产物
         run: |
-          DYLIB="Package/Release/MoltenVK/dynamic/dylib/iOS/libMoltenVK.dylib"
-          test -f "$DYLIB"
-          lipo -info "$DYLIB"
-          otool -l "$DYLIB" | grep -A4 LC_BUILD_VERSION | grep -E "minos|platform" || true
-          strings "$DYLIB" | grep -c "MoltenVK" || true
+          set -euo pipefail
+          find Package -name "libMoltenVK*.dylib" -print || true
+          DYLIB=$(find Package -name "libMoltenVK.dylib" | head -1)
+          test -n "$DYLIB"
+          mkdir -p out
+          cp "$DYLIB" out/libMoltenVK.dylib
+          lipo -info out/libMoltenVK.dylib
+          otool -l out/libMoltenVK.dylib | grep -A4 LC_BUILD_VERSION | head -20 || true
+          nm -gU out/libMoltenVK.dylib | grep -c "vkCreateMetalSurfaceEXT" || true
 
       - name: 归档 dylib 产物
         uses: actions/upload-artifact@v4
         with:
           name: MoltenVK-dylib
-          path: Package/Release/MoltenVK/dynamic/dylib/iOS/libMoltenVK.dylib
+          path: out/libMoltenVK.dylib
           if-no-files-found: error
           retention-days: 30
 
