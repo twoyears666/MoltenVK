@@ -23,6 +23,8 @@
 #include "MVKOSExtensions.h"
 #include "mvk_datatypes.hpp"
 
+#include <cmath>
+
 #import "CAMetalLayer+MoltenVK.h"
 #import "MVKBlockObserver.h"
 
@@ -59,7 +61,18 @@ VkExtent2D MVKSurface::getExtent() {
 }
 
 VkExtent2D MVKSurface::getNaturalExtent() {
-	return _mtlCAMetalLayer ? mvkVkExtent2DFromCGSize(_mtlCAMetalLayer.naturalDrawableSizeMVK) : kMVKUndefinedExtent;
+	if ( !_mtlCAMetalLayer ) { return kMVKUndefinedExtent; }
+
+	// Drawables are allocated in whole pixels, and the pixel extent must never be smaller than
+	// the geometry the app renders into.  mvkVkExtent2DFromCGSize() rounds half-to-even, so a
+	// 375 pt layer at contentsScale 1.5 reports 562 instead of the 563 pixels that Core
+	// Animation actually allocates.  That one pixel gap makes currentExtent (and
+	// vkGetPhysicalDevicePresentRectanglesKHR) disagree with the real drawable, which renders
+	// hasOptimalSurface() permanently false and lets a mismatched swapchain present out of
+	// bounds.  Round up instead.
+	CGSize naturalSize = _mtlCAMetalLayer.naturalDrawableSizeMVK;
+	return { static_cast<uint32_t>(std::ceil(naturalSize.width)),
+			 static_cast<uint32_t>(std::ceil(naturalSize.height)) };
 }
 
 void MVKSurface::setActiveSwapchain(MVKSwapchain* swapchain) {

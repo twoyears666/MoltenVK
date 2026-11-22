@@ -2048,15 +2048,31 @@ VkResult MVKPhysicalDevice::getSurfaceFormats(MVKSurface* surface,
 
 	if ( !surface->wasConfigurationSuccessful() ) { return surface->getConfigurationResult(); }
 
+	// The owning CAMetalLayer's current pixelFormat takes precedence when enumerating formats.
+	// Apps such as ANGLE configure the layer before creating the surface, and
+	// vkCreateSwapchainKHR() later rewrites layer.pixelFormat from imageFormat.  If the layer's
+	// format is not listed (or is listed late), a client can pick a format that disagrees with
+	// what the layer is already rendering into.  Listing the layer's own format first, including
+	// formats outside the fixed list below, keeps negotiation faithful to the layer.
+	CAMetalLayer* mtlLayer = surface->getCAMetalLayer();
+	MTLPixelFormat layerMTLFmt = mtlLayer ? mtlLayer.pixelFormat : MTLPixelFormatInvalid;
+	VkFormat layerVkFmt = VK_FORMAT_UNDEFINED;
+	if (layerMTLFmt != MTLPixelFormatInvalid && _pixelFormats.isSupported(layerMTLFmt)) {
+		layerVkFmt = _pixelFormats.getVkFormat(layerMTLFmt);
+	}
+
 #define addSurfFmt(MTL_FMT) \
 	do { \
-		if (_pixelFormats.isSupported(MTLPixelFormat ##MTL_FMT)) { \
-			VkFormat vkFmt = _pixelFormats.getVkFormat(MTLPixelFormat ##MTL_FMT); \
+		MTLPixelFormat mtlFmt = MTLPixelFormat ##MTL_FMT; \
+		if (mtlFmt == layerMTLFmt) { break; } \
+		if (_pixelFormats.isSupported(mtlFmt)) { \
+			VkFormat vkFmt = _pixelFormats.getVkFormat(mtlFmt); \
 			if (vkFmt) { vkFormats.push_back(vkFmt); } \
 		} \
 	} while(false)
 
 	MVKSmallVector<VkFormat, 16> vkFormats;
+	if (layerVkFmt) { vkFormats.push_back(layerVkFmt); }
 	addSurfFmt(BGRA8Unorm);
 	addSurfFmt(BGRA8Unorm_sRGB);
 	addSurfFmt(RGBA16Float);

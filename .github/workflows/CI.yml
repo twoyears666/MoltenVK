@@ -2,10 +2,7 @@ name: CI
 
 # Controls when the action will run.
 on:
-  # Triggers the workflow on push or pull request events
-  push:
-  pull_request:
-  # Allows you to run this workflow manually from the Actions tab
+  # 本 fork 只跑 build-ios-dylib.yml，上游全平台矩阵改为手动触发，避免每次 push 重复烧 CI。
   workflow_dispatch:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel

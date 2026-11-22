@@ -1,0 +1,83 @@
+# 为 Air2 + ANGLE 出 iOS 版 libMoltenVK.dylib。
+# 与上游 CI 的区别：只编 iOS 真机 arm64，并且把部署目标压到 iOS 14.0，
+# 产物直接对应 Air2/Libraries/Frameworks/libMoltenVK.dylib。
+name: Build iOS MoltenVK dylib
+
+on:
+  push:
+    branches: [ main, feat/** ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # === 编译 iOS 动态库 —— 产物要能整体替换 Air2 包内的 libMoltenVK.dylib ===
+  build:
+    name: 编译 iOS dylib
+    runs-on: macos-15
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      # fetchDependencies 会调 glslang 的 python 脚本，3.12 起删了 distutils
+      - name: 准备 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 缓存第三方依赖
+        uses: actions/cache@v4
+        with:
+          path: |
+            External/build
+            !External/build/Intermediates
+          key: ${{ runner.os }}-ios-${{ hashFiles('fetchDependencies', 'ExternalRevisions/**') }}
+
+      - name: 拉取并编译第三方依赖
+        run: ./fetchDependencies -v --ios
+
+      - name: 编译 iOS arm64 dylib（部署目标 14.0）
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project MoltenVKPackaging.xcodeproj \
+            -scheme "MoltenVK Package (iOS only)" \
+            -destination "generic/platform=iOS" \
+            -quiet \
+            IPHONEOS_DEPLOYMENT_TARGET=14.0 \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO 2>&1 | tee xcodebuild.log
+
+      - name: 校验产物架构与最低系统版本
+        run: |
+          DYLIB="Package/Release/MoltenVK/dynamic/dylib/iOS/libMoltenVK.dylib"
+          test -f "$DYLIB"
+          lipo -info "$DYLIB"
+          otool -l "$DYLIB" | grep -A4 LC_BUILD_VERSION | grep -E "minos|platform" || true
+          strings "$DYLIB" | grep -c "MoltenVK" || true
+
+      - name: 归档 dylib 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoltenVK-dylib
+          path: Package/Release/MoltenVK/dynamic/dylib/iOS/libMoltenVK.dylib
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 上传编译日志（失败时）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: |
+            xcodebuild.log
+            dependenciesbuild.log
+          if-no-files-found: warn
+          retention-days: 7
