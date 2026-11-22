@@ -51,8 +51,9 @@ jobs:
             -target MoltenVK-iOS-dynamic \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build_dd \
             -quiet \
+            SYMROOT="$PWD/build_out" \
+            OBJROOT="$PWD/build_out/obj" \
             IPHONEOS_DEPLOYMENT_TARGET=14.0 \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO 2>&1 | tee xcodebuild.log
@@ -60,8 +61,8 @@ jobs:
       - name: 收集并校验 dylib 产物
         run: |
           set -euo pipefail
-          ls -l build_dd/Build/Products/Release-iphoneos/
-          DYLIB=$(find build_dd/Build/Products/Release-iphoneos -maxdepth 1 -name "*.dylib" | head -1)
+          ls -l build_out/Release-iphoneos/
+          DYLIB=$(find build_out/Release-iphoneos -maxdepth 1 -name "*.dylib" | head -1)
           test -n "$DYLIB"
           mkdir -p out
           cp "$DYLIB" out/libMoltenVK.dylib
