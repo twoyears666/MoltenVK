@@ -39,8 +39,7 @@ mkdir -p "${mvk_pkg_prod_path}"
 
 # App store distribution does not support naked dylibs, so only include a naked dylib for macOS.
 copy_dylib "" "macOS"
-# Air2 侧载分发，不走 App Store，需要 iOS 的裸 dylib 直接替换包内 Frameworks/libMoltenVK.dylib。
-copy_dylib "-iphoneos" "iOS"
+#copy_dylib "-iphoneos" "iOS"
 #copy_dylib "-iphonesimulator" "iOS-simulator"
 #copy_dylib "-appletvos" "tvOS"
 #copy_dylib "-appletvsimulator" "tvOS-simulator"

@@ -50,6 +50,7 @@ jobs:
             -project MoltenVKPackaging.xcodeproj \
             -scheme "MoltenVK Package (iOS only)" \
             -destination "generic/platform=iOS" \
+            -derivedDataPath build_dd \
             -quiet \
             IPHONEOS_DEPLOYMENT_TARGET=14.0 \
             ARCHS=arm64 \
@@ -58,9 +59,8 @@ jobs:
       - name: 收集并校验 dylib 产物
         run: |
           set -euo pipefail
-          find Package -name "libMoltenVK*.dylib" -print || true
-          DYLIB=$(find Package -name "libMoltenVK.dylib" | head -1)
-          test -n "$DYLIB"
+          DYLIB="build_dd/Build/Products/Release-iphoneos/libMoltenVK.dylib"
+          test -f "$DYLIB"
           mkdir -p out
           cp "$DYLIB" out/libMoltenVK.dylib
           lipo -info out/libMoltenVK.dylib
