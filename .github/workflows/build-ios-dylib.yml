@@ -41,6 +41,8 @@ jobs:
           key: ${{ runner.os }}-ios-${{ hashFiles('fetchDependencies', 'ExternalRevisions/**') }}
 
       - name: 拉取并编译第三方依赖
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: '14.0'
         run: ./fetchDependencies -v --ios
 
       - name: 编译 iOS arm64 dylib（部署目标 14.0）
@@ -62,11 +64,17 @@ jobs:
         run: |
           set -euo pipefail
           ls -l build_out/Release-iphoneos/
+          # 该 target 产出 MoltenVK.framework，其二进制就是动态库本体（Mach-O dylib），
+          # 改名成 libMoltenVK.dylib 后可直接替换 Air2 包内 Frameworks/libMoltenVK.dylib。
           DYLIB=$(find build_out/Release-iphoneos -maxdepth 1 -name "*.dylib" | head -1)
-          test -n "$DYLIB"
+          if [ -z "$DYLIB" ]; then
+            DYLIB="build_out/Release-iphoneos/MoltenVK.framework/MoltenVK"
+          fi
+          test -f "$DYLIB"
           mkdir -p out
           cp "$DYLIB" out/libMoltenVK.dylib
           install_name_tool -id "@rpath/libMoltenVK.dylib" out/libMoltenVK.dylib
+          file out/libMoltenVK.dylib
           lipo -info out/libMoltenVK.dylib
           otool -l out/libMoltenVK.dylib | grep -A4 LC_BUILD_VERSION | head -20 || true
           nm -gU out/libMoltenVK.dylib | grep -c "vkCreateMetalSurfaceEXT" || true
